@@ -89,6 +89,27 @@ func TestSlice(t *testing.T) {
 	}
 }
 
+func TestSplit(t *testing.T) {
+	r, b := data()
+
+	const nsplit = 10
+	for i := 0; i < nsplit; i++ {
+		splitidx := rand.Intn(r.Len())
+		left, right := r.SplitAt(splitidx)
+
+		lb := b.slice(0, splitidx)
+		rb := b.slice(splitidx, b.length())
+		if !bytes.Equal(left.Value(), lb) {
+			t.Errorf("%d: left slice not equal: %s %s", splitidx, string(left.Value()), string(lb))
+		}
+		if !bytes.Equal(right.Value(), rb) {
+			t.Errorf("%d: right slice not equal: %s %s", splitidx, string(right.Value()), string(rb))
+		}
+		r = rope.Join(left, right)
+		check(r, b, t)
+	}
+}
+
 type basicText struct {
 	data []byte
 }

@@ -160,6 +160,46 @@ func (n *Node) At(pos int) byte {
 	return s[0]
 }
 
+// SplitAt splits the node at the given index and returns two new ropes
+// corresponding to the left and right portions of the split.
+func (n *Node) SplitAt(i int) (*Node, *Node) {
+	switch n.kind {
+	case tLeaf:
+		return New(n.value[:i]), New(n.value[i:])
+	case tNode:
+		m := n.left.length
+		if i == m {
+			return n.left, n.right
+		} else if i < m {
+			l, r := n.left.SplitAt(i)
+			return l, join(r, n.right)
+		}
+		l, r := n.right.SplitAt(i - m)
+		return join(n.left, l), r
+	}
+	panic("unreachable")
+}
+
+func join(l, r *Node) *Node {
+	n := &Node{
+		left:   l,
+		right:  r,
+		length: l.length + r.length,
+		kind:   tNode,
+	}
+	n.adjust()
+	return n
+}
+
+// Join merges all the given ropes together into one rope.
+func Join(a, b *Node, more ...*Node) *Node {
+	s := join(a, b)
+	for _, n := range more {
+		s = join(s, n)
+	}
+	return s
+}
+
 // Rebuild rebuilds the entire rope structure, resulting in a balanced tree.
 func (n *Node) Rebuild() {
 	switch n.kind {
