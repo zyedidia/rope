@@ -235,6 +235,17 @@ func (n *Node) Each(fn func(n *Node)) {
 	}
 }
 
+// EachLeaf applies the given function to every leaf node in order.
+func (n *Node) EachLeaf(fn func(n *Node)) {
+	switch n.kind {
+	case tLeaf:
+		fn(n)
+	case tNode:
+		n.left.EachLeaf(fn)
+		n.right.EachLeaf(fn)
+	}
+}
+
 func min(a, b int) int {
 	if a < b {
 		return a
