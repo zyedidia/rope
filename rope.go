@@ -1,5 +1,7 @@
 package rope
 
+import "bytes"
+
 var (
 	// SplitLength is the threshold above which slices will be split into
 	// separate nodes.
@@ -56,6 +58,7 @@ func (n *Node) adjust() {
 			n.right = New(n.value[divide:])
 			n.value = nil
 			n.kind = tNode
+			n.length = n.left.length + n.right.length
 		}
 	case tNode:
 		if n.length < JoinLength {
@@ -63,6 +66,7 @@ func (n *Node) adjust() {
 			n.left = nil
 			n.right = nil
 			n.kind = tLeaf
+			n.length = len(n.value)
 		}
 	}
 }
@@ -244,6 +248,52 @@ func (n *Node) EachLeaf(fn func(n *Node)) {
 		n.left.EachLeaf(fn)
 		n.right.EachLeaf(fn)
 	}
+}
+
+// Count the number of occurrences of 'sep' in this rope in the range
+// [start:end).
+func (n *Node) Count(start, end int, sep []byte) int {
+	_, r := n.SplitAt(start)
+	l, _ := r.SplitAt(end - start)
+
+	var count int
+	l.EachLeaf(func(n *Node) {
+		count += bytes.Count(n.Value(), sep)
+	})
+	return count
+}
+
+// IndexAllFunc iterates through all occurrences of 'sep' in the range
+// [start:end) and calls fn each time with the index of the occurrence. If 'fn'
+// returns 'true' iteration is aborted and fn will no longer be called.
+func (n *Node) IndexAllFunc(start, end int, sep []byte, fn func(idx int) bool) {
+	_, r := n.SplitAt(start)
+	l, _ := r.SplitAt(end - start)
+
+	var done bool
+	var total int
+	l.EachLeaf(func(n *Node) {
+		if done {
+			return
+		}
+
+		val := n.Value()
+		var acc int
+		for {
+			idx := bytes.Index(val[acc:], sep)
+			if idx == -1 {
+				break
+			}
+
+			if fn(start + total + acc + idx) {
+				done = true
+				return
+			}
+
+			acc += idx + 1
+		}
+		total += acc
+	})
 }
 
 func min(a, b int) int {
