@@ -1,6 +1,9 @@
 package rope
 
-import "bytes"
+import (
+	"bytes"
+	"io"
+)
 
 var (
 	// SplitLength is the threshold above which slices will be split into
@@ -130,6 +133,10 @@ func (n *Node) Insert(pos int, value []byte) {
 
 // Slice returns the range of the rope from [start:end).
 func (n *Node) Slice(start, end int) []byte {
+	if start >= end {
+		return []byte{}
+	}
+
 	switch n.kind {
 	case tLeaf:
 		return n.value[start:end]
@@ -240,13 +247,15 @@ func (n *Node) Each(fn func(n *Node)) {
 }
 
 // EachLeaf applies the given function to every leaf node in order.
-func (n *Node) EachLeaf(fn func(n *Node)) {
+func (n *Node) EachLeaf(fn func(n *Node) bool) bool {
 	switch n.kind {
 	case tLeaf:
-		fn(n)
-	case tNode:
-		n.left.EachLeaf(fn)
-		n.right.EachLeaf(fn)
+		return fn(n)
+	default: // case tNode
+		if n.left.EachLeaf(fn) {
+			return true
+		}
+		return n.right.EachLeaf(fn)
 	}
 }
 
@@ -257,8 +266,9 @@ func (n *Node) Count(start, end int, sep []byte) int {
 	l, _ := r.SplitAt(end - start)
 
 	var count int
-	l.EachLeaf(func(n *Node) {
+	l.EachLeaf(func(n *Node) bool {
 		count += bytes.Count(n.Value(), sep)
+		return false
 	})
 	return count
 }
@@ -270,30 +280,38 @@ func (n *Node) IndexAllFunc(start, end int, sep []byte, fn func(idx int) bool) {
 	_, r := n.SplitAt(start)
 	l, _ := r.SplitAt(end - start)
 
-	var done bool
 	var total int
-	l.EachLeaf(func(n *Node) {
-		if done {
-			return
-		}
-
-		val := n.Value()
+	l.EachLeaf(func(it *Node) bool {
+		val := it.Value()
 		var acc int
 		for {
 			idx := bytes.Index(val[acc:], sep)
 			if idx == -1 {
+				acc += len(val[acc:])
 				break
 			}
 
 			if fn(start + total + acc + idx) {
-				done = true
-				return
+				return true
 			}
 
 			acc += idx + 1
 		}
 		total += acc
+		return false
 	})
+}
+
+func (n *Node) WriteTo(w io.Writer) (int64, error) {
+	var err error
+	var ntotal int64
+	n.EachLeaf(func(it *Node) bool {
+		var nwritten int
+		nwritten, err = w.Write(it.Value())
+		ntotal += int64(nwritten)
+		return err != nil
+	})
+	return ntotal, err
 }
 
 func min(a, b int) int {
