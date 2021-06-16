@@ -131,7 +131,8 @@ func (n *Node) Insert(pos int, value []byte) {
 	n.adjust()
 }
 
-// Slice returns the range of the rope from [start:end).
+// Slice returns the range of the rope from [start:end). The returned slice
+// is not copied.
 func (n *Node) Slice(start, end int) []byte {
 	if start >= end {
 		return []byte{}
@@ -302,6 +303,23 @@ func (n *Node) IndexAllFunc(start, end int, sep []byte, fn func(idx int) bool) {
 	})
 }
 
+// ReadAt implements the io.ReaderAt interface.
+func (n *Node) ReadAt(p []byte, off int64) (nread int, err error) {
+	if off > int64(n.length) {
+		return 0, io.EOF
+	}
+
+	end := off + int64(len(p))
+	if end >= int64(n.length) {
+		end = int64(n.length)
+		err = io.EOF
+	}
+	b := n.Slice(int(off), int(end))
+	nread = copy(p, b)
+	return nread, err
+}
+
+// WriteTo implements the io.WriterTo interface.
 func (n *Node) WriteTo(w io.Writer) (int64, error) {
 	var err error
 	var ntotal int64
